@@ -1095,7 +1095,7 @@ function setRadioStatus(message,type=''){
  status.className=`tts-status mt-3 ${type}`.trim();
 }
 function getTtsEndpoint(){
- if(GEMINI_TTS_ENDPOINT.includes('https://ai-teacher-gemini-tts-377083822011.asia-northeast1.run.app'))throw new Error('Cloud Runの接続先が未設定です。');
+ if(GEMINI_TTS_ENDPOINT.includes('https://ai-teacher-gemini-tts-377083822011.asia-northeast1.run.app/tts'))throw new Error('Cloud Runの接続先が未設定です。');
  const url=new URL(GEMINI_TTS_ENDPOINT);
  if(url.protocol!=='https:'||!url.hostname.endsWith('.run.app')||url.pathname!=='/tts'){
   throw new Error('Cloud RunのURLが正しくありません。https://サービスURL.run.app/tts の形で設定してください。');
