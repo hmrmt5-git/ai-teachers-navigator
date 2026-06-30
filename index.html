@@ -1095,7 +1095,10 @@ function setRadioStatus(message,type=''){
  status.className=`tts-status mt-3 ${type}`.trim();
 }
 function getTtsEndpoint(){
- if(GEMINI_TTS_ENDPOINT.includes('https://ai-teacher-gemini-tts-377083822011.asia-northeast1.run.app/tts'))throw new Error('Cloud Runの接続先が未設定です。');
+ if(location.protocol==='file:'){
+  throw new Error('パソコン内のHTMLを直接開いた状態ではGemini音声へ接続できません。更新版をGitHubへアップロードし、GitHub PagesのURLからお試しください。');
+ }
+ if(GEMINI_TTS_ENDPOINT.includes('YOUR-CLOUD-RUN-SERVICE'))throw new Error('Cloud Runの接続先が未設定です。');
  const url=new URL(GEMINI_TTS_ENDPOINT);
  if(url.protocol!=='https:'||!url.hostname.endsWith('.run.app')||url.pathname!=='/tts'){
   throw new Error('Cloud RunのURLが正しくありません。https://サービスURL.run.app/tts の形で設定してください。');
@@ -1149,7 +1152,9 @@ async function playGeminiRadio(){
   const message=error.name==='AbortError'
    ?'65秒以内に応答がありませんでした。Cloud RunのログとGemini APIの利用状況を確認してください。'
    :(error.message==='Failed to fetch'||error instanceof TypeError
-    ?'Cloud Runへ接続できませんでした。まず「接続を確認」を押してください。ALLOWED_ORIGINS、Cloud Runの公開設定、URLを確認してください。'
+    ?(location.protocol==='file:'
+      ?'パソコン内のHTMLを直接開いた状態では接続できません。更新版をGitHubへアップロードし、GitHub PagesのURLからお試しください。'
+      :`Cloud Runは起動していますが、このページからの通信が許可されていません。Cloud RunのALLOWED_ORIGINSを「${location.origin}」に設定してください。`)
     :error.message);
   setRadioStatus(`${message} 「端末の音声で再生」も利用できます。`,'error');
  }finally{
@@ -1170,7 +1175,9 @@ async function testTtsConnection(){
   setRadioStatus('Cloud Runへの接続は正常です。続いて「Gemini音声を生成・再生」を押してください。','success');
  }catch(error){
   const message=(error.message==='Failed to fetch'||error instanceof TypeError)
-   ?'Cloud Runへ接続できません。Cloud Runが「未認証の呼び出しを許可」になっているか、ALLOWED_ORIGINSがGitHub Pagesの公開元と一致しているか確認してください。'
+   ?(location.protocol==='file:'
+     ?'パソコン内のHTMLを直接開いた状態では接続確認できません。GitHub Pagesへアップロードしたページからお試しください。'
+     :`Cloud Runは起動していますが、公開元が一致していません。Cloud RunのALLOWED_ORIGINSへ「${location.origin}」を設定してください。`)
    :error.message;
   setRadioStatus(message,'error');
  }finally{
