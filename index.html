@@ -1061,7 +1061,7 @@ function renderMaturity(){
 }
 let radioVariant=-1;
 // Cloud Runを公開した後、次のURLを実際のサービスURLへ書き換えてください。
-const GEMINI_TTS_ENDPOINT='https://https://ai-teacher-gemini-tts-377083822011.asia-northeast1.run.app/tts';
+const GEMINI_TTS_ENDPOINT='https://ai-teacher-gemini-tts-377083822011.asia-northeast1.run.app/tts';
 function makeRadio(){
  stopRadio();
  const score=scoreTotal(),l=getLevel(score),weak=state.quizScore<7?'個人情報・著作権・最終確認の3点を、もう一度チェックリストで確かめましょう。':'基本ルールはしっかりキャッチできています。';
@@ -1091,14 +1091,22 @@ function clearGeminiAudio(){
 async function playGeminiRadio(){
  const status=document.getElementById('radioStatus'),btn=document.getElementById('playRadioBtn');
  if(GEMINI_TTS_ENDPOINT.includes('YOUR-CLOUD-RUN-SERVICE')){
-  const GEMINI_TTS_ENDPOINT='https://ai-teacher-gemini-tts-377083822011.asia-northeast1.run.app/tts';
+  status.textContent='https://ai-teacher-gemini-tts-377083822011.asia-northeast1.run.app/tts';
+  return;
+ }
+ let endpointUrl;
+ try{
+  endpointUrl=new URL(GEMINI_TTS_ENDPOINT);
+  if(endpointUrl.protocol!=='https:'||!endpointUrl.hostname.endsWith('.run.app')||endpointUrl.pathname!=='/tts')throw new Error();
+ }catch(e){
+  status.textContent='Cloud Runの接続先URLが正しくありません。「https://サービスURL.run.app/tts」の形で、https://を重ねずに設定してください。';
   return;
  }
  stopRadio();clearGeminiAudio();
  btn.disabled=true;btn.textContent='音声を生成中…';
  status.textContent='Geminiが音声を生成しています。通常は数秒から十数秒かかります。';
  try{
-  const response=await fetch(GEMINI_TTS_ENDPOINT,{
+  const response=await fetch(endpointUrl.href,{
    method:'POST',
    headers:{'Content-Type':'application/json'},
    body:JSON.stringify({
