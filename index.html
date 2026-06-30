@@ -1091,7 +1091,7 @@ function clearGeminiAudio(){
 async function playGeminiRadio(){
  const status=document.getElementById('radioStatus'),btn=document.getElementById('playRadioBtn');
  if(GEMINI_TTS_ENDPOINT.includes('YOUR-CLOUD-RUN-SERVICE')){
-  status.textContent='Cloud Runの接続先が未設定です。公開手順書に沿ってサービスURLを設定してください。';
+  const GEMINI_TTS_ENDPOINT='https://ai-teacher-gemini-tts-377083822011.asia-northeast1.run.app/tts';
   return;
  }
  stopRadio();clearGeminiAudio();
