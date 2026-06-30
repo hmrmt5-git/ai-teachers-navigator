@@ -110,6 +110,10 @@
     .voice-settings label{display:block;font-size:.8rem;font-weight:800;margin-bottom:5px;color:#dce8f5}
     .voice-settings .form-select{background-color:#fff;color:#243b53}
     .radio-audio{width:100%;margin-top:15px;accent-color:var(--gold)}
+    .tts-status{background:#ffffff12;border:1px solid #ffffff35;border-radius:12px;padding:12px 14px;color:#e9f2fb!important;font-weight:700}
+    .tts-status.working{background:#173f68;border-color:#6bbcff;color:#fff!important}
+    .tts-status.success{background:#125b49;border-color:#5ed4b3;color:#fff!important}
+    .tts-status.error{background:#731f2d;border-color:#ff8192;color:#fff!important}
     .source-list a{color:#315f8f}
     .toast-note{position:fixed;right:22px;bottom:22px;background:var(--navy);color:#fff;padding:13px 18px;border-radius:12px;z-index:2000;box-shadow:var(--shadow)}
     body.dark-mode{background:#09111f;color:#d9e5f2}
@@ -352,14 +356,15 @@
         </div>
         <audio id="geminiAudio" class="radio-audio d-none" controls preload="none"></audio>
         <div class="d-flex flex-wrap gap-2 mt-4">
-          <button class="btn btn-warning" id="playRadioBtn" onclick="playGeminiRadio()">✨ Gemini音声を生成・再生</button>
+          <button type="button" class="btn btn-warning" id="playRadioBtn">✨ Gemini音声を生成・再生</button>
           <button class="btn btn-outline-light" onclick="stopRadio()">■ 停止</button>
+          <button type="button" class="btn btn-outline-info" id="testTtsBtn">接続を確認</button>
           <button class="btn btn-outline-light" onclick="playDeviceRadio()">端末の音声で再生</button>
           <button class="btn btn-light" onclick="makeRadio()">🔄 スクリプトを再生成</button>
           <button class="btn btn-outline-light" onclick="copyRadio()">📋 コピー</button>
           <button class="btn btn-success" onclick="retryChallenge()">↩ 結果を保存して再チャレンジ</button>
         </div>
-        <div id="radioStatus" class="small text-white-50 mt-2" aria-live="polite">声・話し方・速さを選び、Gemini音声を生成できます。台本は音声生成のためGoogleのAPIへ送信されます。</div>
+        <div id="radioStatus" class="tts-status mt-3" role="status" aria-live="assertive">声・話し方・速さを選び、Gemini音声を生成できます。台本は音声生成のためGoogleのAPIへ送信されます。</div>
       </div>
       <div class="panel mt-4">
         <h3 class="h5">修了メッセージ</h3>
@@ -1083,32 +1088,41 @@ AIの文章は、あくまでたたき台。成績や個人情報は許可のな
 }
 let radioUtterance=null;
 let geminiAudioUrl='';
+function setRadioStatus(message,type=''){
+ const status=document.getElementById('radioStatus');
+ if(!status)return;
+ status.textContent=message;
+ status.className=`tts-status mt-3 ${type}`.trim();
+}
+function getTtsEndpoint(){
+ if(GEMINI_TTS_ENDPOINT.includes('https://ai-teacher-gemini-tts-377083822011.asia-northeast1.run.app'))throw new Error('Cloud Runの接続先が未設定です。');
+ const url=new URL(GEMINI_TTS_ENDPOINT);
+ if(url.protocol!=='https:'||!url.hostname.endsWith('.run.app')||url.pathname!=='/tts'){
+  throw new Error('Cloud RunのURLが正しくありません。https://サービスURL.run.app/tts の形で設定してください。');
+ }
+ return url;
+}
 function clearGeminiAudio(){
  const audio=document.getElementById('geminiAudio');
  if(audio){audio.pause();audio.removeAttribute('src');audio.load();audio.classList.add('d-none')}
  if(geminiAudioUrl){URL.revokeObjectURL(geminiAudioUrl);geminiAudioUrl=''}
 }
 async function playGeminiRadio(){
- const status=document.getElementById('radioStatus'),btn=document.getElementById('playRadioBtn');
- if(GEMINI_TTS_ENDPOINT.includes('YOUR-CLOUD-RUN-SERVICE')){
-  status.textContent='https://ai-teacher-gemini-tts-377083822011.asia-northeast1.run.app/tts';
-  return;
- }
- let endpointUrl;
+ const btn=document.getElementById('playRadioBtn');
+ setRadioStatus('ボタンを受け付けました。Cloud Runへ接続しています…','working');
+ btn.disabled=true;btn.textContent='接続中…';
  try{
-  endpointUrl=new URL(GEMINI_TTS_ENDPOINT);
-  if(endpointUrl.protocol!=='https:'||!endpointUrl.hostname.endsWith('.run.app')||endpointUrl.pathname!=='/tts')throw new Error();
- }catch(e){
-  status.textContent='Cloud Runの接続先URLが正しくありません。「https://サービスURL.run.app/tts」の形で、https://を重ねずに設定してください。';
-  return;
- }
- stopRadio();clearGeminiAudio();
- btn.disabled=true;btn.textContent='音声を生成中…';
- status.textContent='Geminiが音声を生成しています。通常は数秒から十数秒かかります。';
- try{
+  const endpointUrl=getTtsEndpoint();
+  stopRadio();clearGeminiAudio();
+  btn.disabled=true;btn.textContent='音声を生成中…';
+  setRadioStatus('Geminiが音声を生成しています。通常は数秒から数十秒かかります。この画面のままお待ちください。','working');
+  await new Promise(resolve=>requestAnimationFrame(resolve));
+  const controller=new AbortController();
+  const timer=setTimeout(()=>controller.abort(),65000);
   const response=await fetch(endpointUrl.href,{
    method:'POST',
    headers:{'Content-Type':'application/json'},
+   signal:controller.signal,
    body:JSON.stringify({
     text:document.getElementById('radioScript').textContent,
     voice:document.getElementById('ttsVoice').value,
@@ -1116,6 +1130,7 @@ async function playGeminiRadio(){
     pace:document.getElementById('ttsPace').value
    })
   });
+  clearTimeout(timer);
   if(!response.ok){
    let message='音声を生成できませんでした。';
    try{const data=await response.json();if(data.error)message=data.error}catch(e){}
@@ -1126,14 +1141,40 @@ async function playGeminiRadio(){
   geminiAudioUrl=URL.createObjectURL(blob);
   const audio=document.getElementById('geminiAudio');
   audio.src=geminiAudioUrl;audio.classList.remove('d-none');
-  audio.onplay=()=>status.textContent='🔊 選択した設定で再生中です。';
-  audio.onended=()=>status.textContent='再生が終了しました。設定を変えると別の読み方を試せます。';
-  audio.onerror=()=>status.textContent='音声ファイルを再生できませんでした。端末の音量とブラウザ設定をご確認ください。';
+  audio.onplay=()=>setRadioStatus('🔊 選択した設定で再生中です。','success');
+  audio.onended=()=>setRadioStatus('再生が終了しました。設定を変えると別の読み方を試せます。','success');
+  audio.onerror=()=>setRadioStatus('音声ファイルを再生できませんでした。端末の音量とブラウザ設定をご確認ください。','error');
   await audio.play();
  }catch(error){
-  status.textContent=`${error.message} 「端末の音声で再生」も利用できます。`;
+  const message=error.name==='AbortError'
+   ?'65秒以内に応答がありませんでした。Cloud RunのログとGemini APIの利用状況を確認してください。'
+   :(error.message==='Failed to fetch'||error instanceof TypeError
+    ?'Cloud Runへ接続できませんでした。まず「接続を確認」を押してください。ALLOWED_ORIGINS、Cloud Runの公開設定、URLを確認してください。'
+    :error.message);
+  setRadioStatus(`${message} 「端末の音声で再生」も利用できます。`,'error');
  }finally{
   btn.disabled=false;btn.textContent='✨ Gemini音声を生成・再生';
+ }
+}
+async function testTtsConnection(){
+ const btn=document.getElementById('testTtsBtn');
+ btn.disabled=true;
+ setRadioStatus('Cloud Runの起動状態を確認しています…','working');
+ try{
+  const endpoint=getTtsEndpoint();
+  const health=new URL('/health',endpoint);
+  const response=await fetch(health.href,{cache:'no-store'});
+  if(!response.ok)throw new Error(`接続確認に失敗しました（HTTP ${response.status}）。`);
+  const result=await response.json();
+  if(!result.ok)throw new Error('Cloud Runから正常な応答を受け取れませんでした。');
+  setRadioStatus('Cloud Runへの接続は正常です。続いて「Gemini音声を生成・再生」を押してください。','success');
+ }catch(error){
+  const message=(error.message==='Failed to fetch'||error instanceof TypeError)
+   ?'Cloud Runへ接続できません。Cloud Runが「未認証の呼び出しを許可」になっているか、ALLOWED_ORIGINSがGitHub Pagesの公開元と一致しているか確認してください。'
+   :error.message;
+  setRadioStatus(message,'error');
+ }finally{
+  btn.disabled=false;
  }
 }
 function playDeviceRadio(){
@@ -1173,6 +1214,8 @@ function load(){
  try{const d=JSON.parse(localStorage.getItem('aiTeacherNavigatorV3'));if(d){Object.assign(state,d);state.completed=new Set(d.completed||[])}}catch(e){}
 }
 document.getElementById('menuBtn').onclick=()=>document.getElementById('sidebar').classList.toggle('open');
+document.getElementById('playRadioBtn').addEventListener('click',playGeminiRadio);
+document.getElementById('testTtsBtn').addEventListener('click',testTtsConnection);
 document.addEventListener('click',e=>{if(innerWidth<992&&!e.target.closest('#sidebar')&&!e.target.closest('#menuBtn'))document.getElementById('sidebar').classList.remove('open')});
 navRender();renderQuiz();
 </script>
